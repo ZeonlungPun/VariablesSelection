@@ -1,15 +1,125 @@
 from sklearn.linear_model import Lasso,ElasticNet
 import numpy as np
-from sklearn.preprocessing import MinMaxScaler,StandardScaler
-from sklearn.metrics import r2_score,accuracy_score
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import *
-import statsmodels.api as sm
-from knockpy.knockoff_filter import KnockoffFilter
-import matplotlib.pyplot as plt
-from lassonet import LassoNetRegressor,LassoNetClassifier
-from group_lasso import GroupLasso
-from sklearn.metrics import mean_squared_error
+# from sklearn.preprocessing import MinMaxScaler,StandardScaler
+# from sklearn.metrics import r2_score,accuracy_score
+# from sklearn.model_selection import train_test_split
+# from sklearn.ensemble import *
+# import statsmodels.api as sm
+# from knockpy.knockoff_filter import KnockoffFilter
+# import matplotlib.pyplot as plt
+# from lassonet import LassoNetRegressor,LassoNetClassifier
+# from group_lasso import GroupLasso
+# from sklearn.metrics import mean_squared_error
+
+class GradientLearning(object):
+    def __init__(self,x,y,eps,lambd):
+        """
+        main function for the Gradient Learning Variable Selection method
+        :param x: a matrix x that is m by dim (p) where m is the number of samples
+        :param y: a vector y that is m by 1
+        :param eps: a constraint on the ratio of the top s eigenvalues to the sum over all eigenvalues
+        :param lambd: the regularization constant
+        """
+        self.x=x
+        self.y=y
+        self.eps=eps
+        self.lambd=lambd
+
+    def GaussianKernel(self,sigma=8):
+        """
+        sigma : hyperparameter of gaussian kernel
+        calculate the gaussian kernel  using the sample of x
+        :return:  gaussian kernel mxm
+        """
+        temp=np.sum(self.x*self.x,axis=1,keepdims=True)
+        dist_norm=temp+temp.T-2*x@(self.x.T)
+        return np.exp(-dist_norm/(2*sigma**2))
+
+    def ComputeWeightVariance(self):
+        """
+        :return: the variance of the weight matrix computed automatically from the data
+        """
+        temp = np.sum(self.x * self.x, axis=1, keepdims=True)
+        self.dist_norm = temp + temp.T - 2 * x @ (self.x.T)
+        self.sigma = np.median(self.dist_norm)
+
+    def main(self,kernel_type):
+        """
+        the main function for gradient learning variable selection algorithm
+        :param kernel_type: 1 for Gaussian Kernel and 2 for linear kernel
+        :return: nrm: the RKHS norm for each dimension ; F : the gradient evaluated at each sample again a p by m matrix
+        """
+        m,p=self.x.shape[0:2]
+        self.ComputeWeightVariance()
+        #computes the weight matrix
+        w=(1/(self.sigma*np.sqrt(2*np.pi)))*np.exp(-self.dist_norm/(2*self.sigma**2))
+        #give the kernel matrix
+        if kernel_type==1:
+            K=self.GaussianKernel()
+        else:
+            K=self.x@ (self.x.T)
+
+        #constructs the matrix of differences between all m samples
+        xm=self.x[m-1,:].reshape((-1,1))
+        Mx=self.x.T-xm
+
+        #SVD decompose
+        V,Sigma,UT=np.linalg.svd(Mx)
+        #print(V.shape,Sigma.shape,UT.shape)
+        #inverse accumulate (begin from smallest)
+
+        cum_Sigma=np.cumsum(Sigma[::-1])
+
+        #find the drop out index according to the ratio of  accumulate singular value
+        judge=( (cum_Sigma/cum_Sigma[-1])  < self.eps)
+        cut_index=np.max(np.where(judge==1))
+
+        #get the remain number
+        s=p-cut_index-1
+
+        #projects of the paired differences into the subspace of the s eigenfunctions
+        t=np.zeros((s,m))
+        for j in range(m):
+            t[:,j]=Sigma[0:s]* (UT[0:s,j])
+
+        #initialize the transient matrix
+        Ktilde=np.zeros((m*s,m*s))
+        ytilde=np.zeros((m*s,1))
+
+        # computes the Ktilde matrix and the vector script Y
+        for i in range(m):
+            Bmat = np.zeros((s, s))
+            yi = np.zeros((s, 1))
+            for j in range(m):
+                Bmat = Bmat + w[i, j] * (t[:, j] - t[:, i]) * (t[:, j] - t[:, i]).T
+                yi = yi + w[i, j] * (y[j, 0] - y[i, 0]) * (t[:, j].reshape((-1,1)) - t[:, i].reshape((-1,1)))
+            ytilde[i * s :(i+1) *s] = yi
+            for j in range(m):
+                Ktilde[i*s: (i+1)*s, j*s: (j+1)*s]=K[i,j]*Bmat
+
+        #solves the linear system for coefficients c
+        I=np.eye(m*s)
+        c=np.linalg.inv(m**2*self.lambd*I+Ktilde) @ ytilde
+
+        #uwraps the coefficients into a vector for each sample
+        Cmat=np.zeros((p,m))
+        for i in range(m):
+            vec=np.zeros((p,1))
+            for l in range(s):
+                vec=vec+ c[i*s+l,0]*V[:,l].reshape((-1,1))
+            Cmat[:,i]=vec.ravel()
+
+        #computes the gradient for each sample
+        F= Cmat @ K
+
+        nrm=np.zeros((p,1))
+
+        for i in range(p):
+            nrm[i,0]=Cmat[i,:]@ K @ (Cmat[i,:].T)
+
+        return F, nrm
+
+
 
 class SCAD(object):
     """
@@ -74,7 +184,7 @@ class FeatureImportance(object):
     this class use to evaluate the feature importance with some common methods: LASSO, ElasticNet, SCAD, Knockoff,
     RandomForest,AdaBoost,GradientBoosting ,LassoNet, NeuralNetwork with estimated gradients, numerial gradients
     """
-    def __init__(self,x,y,test_ratio,threshold,task='regression',scarler=None,times=20,wanted_num):
+    def __init__(self,x,y,test_ratio,threshold,wanted_num,task='regression',scarler=None,times=20):
         """
         :param x: input  variables
         :param y: output  variables with only 1 dimension
@@ -341,8 +451,9 @@ class FeatureImportance(object):
 
 
 
-    def GetCoefficient(self,model_fun,**kwargs):
+    def GetCoefficient1(self,model_fun,**kwargs):
         """
+        this function use the methods are able to do prediction and feature selection at the same time
         :param model_fun : variable selection model function, including
         LASSO  ,ElasticNET ,SCAD,RandomForest,ExtraTrees,GradientBoosting,AdaBoost
         :param lamda: the regularization coefficient
@@ -373,3 +484,36 @@ class FeatureImportance(object):
         total = np.sum(total_choose, axis=0).reshape((1, -1))
         coef=np.mean(coef)
         return coef,total
+
+
+    def GetCoefficient2(self):
+        self.DataPreprocess()
+        total_choose = np.zeros((self.times, self.x_train.shape[1]))
+        coef = 0
+
+
+if __name__ == '__main__':
+    n=200
+    p=50
+    total_choose = np.zeros((20, p))
+    for time in range(20):
+        print(1)
+        xita=0.25
+        w=np.random.normal(loc=1,scale=1,size=(n,p))
+        u=np.random.normal(loc=1,scale=1,size=(n,p))
+        x=(w+xita*u)/(1+xita)
+
+        y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
+
+        gl=GradientLearning(x,y,0.25,0.5)
+        f,nrm=gl.main(kernel_type=2)
+        id = nrm.ravel().argsort()[::-1][0:2]
+
+
+        total_choose[time, id] = 1
+    total= np.sum(total_choose, axis=0).reshape((1, -1))
+    print(total)
+
+
+
+
