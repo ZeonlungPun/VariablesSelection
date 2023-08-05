@@ -10,6 +10,8 @@ import matplotlib.pyplot as plt
 from lassonet import LassoNetRegressor,LassoNetClassifier
 # from group_lasso import GroupLasso
 from sklearn.metrics import mean_squared_error
+from sklearn.neural_network import MLPRegressor,MLPClassifier
+import shap
 
 class GradientLearning(object):
     def __init__(self,x,y,eps,lambd):
@@ -475,6 +477,27 @@ class FeatureImportance(object):
             grad_x=tape.gradient(y,x).numpy()
         return grad_x
 
+    def SHAP(self,hidden_num,plot=False):
+        """
+        SHAP method for feature importance using MLP as basic
+        hidden_num: tuple, like (12,) ,(64,32)
+         """
+        if self.task=='regression':
+            model=MLPRegressor(hidden_layer_sizes=hidden_num,max_iter=5000)
+        elif self.task=='classification':
+            model=MLPClassifier(hidden_layer_sizes=hidden_num,max_iter=5000)
+        else:
+            raise ValueError('task must be regression or classification')
+        self.model_name='SHAP'
+        model.fit(self.x_train,self.y_train)
+        explainer = shap.KernelExplainer(model.predict, self.x_train)
+        shap_values = explainer.shap_values(self.x_test, nsamples=int(self.x_test.shape[0]*0.65))
+
+        if plot:
+            shap.summary_plot(shap_values,self.x_test,show=False)
+            plt.savefig('vital.png')
+        shap_values = np.mean(abs(shap_values), axis=0)
+        return shap_values
 
 
     def GetCoefficient1(self,model_fun,**kwargs):
@@ -518,7 +541,7 @@ class FeatureImportance(object):
     def GetCoefficient2(self,filter_fun,**kwargs):
         """
         this function use the methods are able to do feature selection only
-        filter_fun : the exeuting function of  GradientLearning , Knockoff or Network
+        filter_fun : the exeuting function of  GradientLearning , Knockoff ,SHAP   or NetworkGradient
         return:  feature importance score and the selection times of different features
 
         example:
@@ -553,7 +576,7 @@ if __name__ == '__main__':
     x=(w+xita*u)/(1+xita)
     y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
     filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
-    coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
+    coef, total=filter.GetCoefficient2(filter_fun=filter.SHAP,hidden_num=(64,),plot=True)
     print(total)
 
 
