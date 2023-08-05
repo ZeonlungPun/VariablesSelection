@@ -1,20 +1,20 @@
 from sklearn.linear_model import Lasso,ElasticNet
 import numpy as np
-# from sklearn.preprocessing import MinMaxScaler,StandardScaler
-# from sklearn.metrics import r2_score,accuracy_score
-# from sklearn.model_selection import train_test_split
-# from sklearn.ensemble import *
-# import statsmodels.api as sm
-# from knockpy.knockoff_filter import KnockoffFilter
-# import matplotlib.pyplot as plt
-# from lassonet import LassoNetRegressor,LassoNetClassifier
+from sklearn.preprocessing import MinMaxScaler,StandardScaler
+from sklearn.metrics import r2_score,accuracy_score
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import *
+import statsmodels.api as sm
+from knockpy.knockoff_filter import KnockoffFilter
+import matplotlib.pyplot as plt
+from lassonet import LassoNetRegressor,LassoNetClassifier
 # from group_lasso import GroupLasso
-# from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error
 
 class GradientLearning(object):
     def __init__(self,x,y,eps,lambd):
         """
-        main function for the Gradient Learning Variable Selection method
+        Class for the Gradient Learning Variable Selection method
         :param x: a matrix x that is m by dim (p) where m is the number of samples
         :param y: a vector y that is m by 1
         :param eps: a constraint on the ratio of the top s eigenvalues to the sum over all eigenvalues
@@ -32,7 +32,7 @@ class GradientLearning(object):
         :return:  gaussian kernel mxm
         """
         temp=np.sum(self.x*self.x,axis=1,keepdims=True)
-        dist_norm=temp+temp.T-2*x@(self.x.T)
+        dist_norm=temp+temp.T-2* self.x  @ (self.x.T)
         return np.exp(-dist_norm/(2*sigma**2))
 
     def ComputeWeightVariance(self):
@@ -40,13 +40,13 @@ class GradientLearning(object):
         :return: the variance of the weight matrix computed automatically from the data
         """
         temp = np.sum(self.x * self.x, axis=1, keepdims=True)
-        self.dist_norm = temp + temp.T - 2 * x @ (self.x.T)
+        self.dist_norm = temp + temp.T - 2 * self.x @ (self.x.T)
         self.sigma = np.median(self.dist_norm)
 
     def main(self,kernel_type):
         """
         the main function for gradient learning variable selection algorithm
-        :param kernel_type: 1 for Gaussian Kernel and 2 for linear kernel
+        :param kernel_type: "Gaussian" Kernel or   "linear" kernel
         :return: nrm: the RKHS norm for each dimension ; F : the gradient evaluated at each sample again a p by m matrix
         """
         m,p=self.x.shape[0:2]
@@ -54,7 +54,7 @@ class GradientLearning(object):
         #computes the weight matrix
         w=(1/(self.sigma*np.sqrt(2*np.pi)))*np.exp(-self.dist_norm/(2*self.sigma**2))
         #give the kernel matrix
-        if kernel_type==1:
+        if kernel_type=="Gaussian":
             K=self.GaussianKernel()
         else:
             K=self.x@ (self.x.T)
@@ -65,9 +65,8 @@ class GradientLearning(object):
 
         #SVD decompose
         V,Sigma,UT=np.linalg.svd(Mx)
-        #print(V.shape,Sigma.shape,UT.shape)
-        #inverse accumulate (begin from smallest)
 
+        #inverse accumulate (begin from smallest)
         cum_Sigma=np.cumsum(Sigma[::-1])
 
         #find the drop out index according to the ratio of  accumulate singular value
@@ -172,12 +171,12 @@ class SCAD(object):
             self.Z = np.dot(self.reg_x.T, self.resid) / self.n + self.params
             parms=[self.__fscad(z)    for z in self.Z]
             self.params = np.array(parms)
-        self._coef = self.params / np.sqrt(self.xvar)
+        self.coef_ = self.params / np.sqrt(self.xvar)
         self._intercept = self.ymean - np.sum(self.params * self.xmean / np.sqrt(self.xvar))
 
 
     def predict(self, x_pre):
-        return np.dot(x_pre, self._coef) + self._intercept
+        return np.dot(x_pre, self.coef_) + self._intercept
 
 class FeatureImportance(object):
     """
@@ -212,6 +211,8 @@ class FeatureImportance(object):
         :return: the most important k features
         """
         top_k = imp_nums
+        if len(score.shape)>1:
+            score=score.ravel()
         top_k_idx = score.argsort()[::-1][0:top_k]
 
         return top_k_idx
@@ -263,6 +264,7 @@ class FeatureImportance(object):
         """
         if self.task =='classification':
             raise ValueError('task can not be classification')
+        self.model_name='ElasticNet'
         ELNet= ElasticNet(l1_ratio=l1, alpha=l2)
         ELNet.fit(self.x_train,self.y_train)
         return ELNet
@@ -276,41 +278,45 @@ class FeatureImportance(object):
         """
         if self.task =='classification':
             raise ValueError('task can not be classification')
+        self.model_name='SCAD'
         model = SCAD(self.x_train, self.y_train, gamma=gamma, lambd=lambd, iteration=100)
         model.fit()
         return model
 
     def RandomForestModel(self,max_depth,estimator_num):
-
+        self.model_name='RandomForest'
         if self.task =='classification':
             rf=RandomForestClassifier(max_depth=max_depth,n_estimators=estimator_num)
         else:
             rf=RandomForestRegressor(max_depth=max_depth,n_estimators=estimator_num)
-        rf.fit(self.x_train,self.y_train)
+        rf.fit(self.x_train,self.y_train.ravel())
         return rf
 
     def AdaBoostModel(self,estimator_num):
+        self.model_name='AdaBoost'
         if self.task =='classification':
             Ada=AdaBoostClassifier(n_estimators=estimator_num)
         else:
             Ada=AdaBoostRegressor(n_estimators=estimator_num)
-        Ada.fit(self.x_train,self.y_train)
+        Ada.fit(self.x_train,self.y_train.ravel())
         return Ada
 
     def GradientBoostingModel(self,max_depth,estimator_num):
+        self.model_name='GradientBoosting'
         if self.task == 'classification':
             GB=GradientBoostingClassifier(max_depth=max_depth,n_estimators=estimator_num)
         else:
             GB=GradientBoostingRegressor(max_depth=max_depth,n_estimators=estimator_num)
-        GB.fit(self.x_train,self.y_train)
+        GB.fit(self.x_train,self.y_train.ravel())
         return GB
 
     def ExtraTreesModel(self,max_depth,estimator_num):
+        self.model_name='ExtraTrees'
         if self.task == 'classification':
             ET=ExtraTreesClassifier(max_depth=max_depth,n_estimators=estimator_num)
         else:
             ET=ExtraTreesRegressor(max_depth=max_depth,n_estimators=estimator_num)
-        ET.fit(self.x_train,self.y_train)
+        ET.fit(self.x_train,self.y_train.ravel())
         return ET
 
 
@@ -321,6 +327,7 @@ class FeatureImportance(object):
         :param fdr: the false discovery rate we can tolerate
         :return: selection results of filter (rejections) , importance scores
         """
+        self.model_name='KnockoffFilter'
         if mode==1:
             kfilter = KnockoffFilter(ksampler='fx', fstat='lasso')
             rejections = kfilter.forward(X=self.x_train, y=self.y_train, fdr=fdr, shrinkage="ledoitwolf")
@@ -333,17 +340,36 @@ class FeatureImportance(object):
             kfilter.seqstep_plot()
             plt.savefig('knokcoff_result.png')
 
-        return rejections,score
+        return score
+
+    def GradientLearningFilter(self,eps,l1_lamda,kernel_type="Gaussian"):
+        """
+        execute the gradient learning one time
+        eps: a constraint on the ratio of the top s eigenvalues to the sum over all eigenvalues
+        l1_lamda:  the regularization constant
+        kernel_type:  Gaussian or linear
+        return the RKHS norm for each dimension
+        """
+        self.model_name='GradientLearning'
+        gl = GradientLearning(self.x, self.y, eps, l1_lamda)
+        f, nrm = gl.main(kernel_type=kernel_type)
+
+        return nrm
 
     def LassoNetModel(self,hidden_dims,M,group=None,plot=False):
         """
         Lasso Net filter for variable selections
-        :param hidden_dims: tuple :(64,32,16)
+        :param hidden_dims: tuple :(64,32,16) or 964,
         :param M: a hyperparameters for controling the liner effective
         :param group: for detecting group importance [[0, 1, 2], [3, 4, 5], [6, 7, 8], [9, 10, 11], [12], list(range(13, 26))]
               plot : plot the mse trend with lambda and number of features
         :return: eature importance score and the selection number of different features
+
+        example:
+        filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
+        coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
         """
+        self.model_name='LassoNet'
         def LassoNetFilter(hidden_dims,M,group=None,plot=False):
             """
             :return: fitted model
@@ -456,15 +482,18 @@ class FeatureImportance(object):
         this function use the methods are able to do prediction and feature selection at the same time
         :param model_fun : variable selection model function, including
         LASSO  ,ElasticNET ,SCAD,RandomForest,ExtraTrees,GradientBoosting,AdaBoost
-        :param lamda: the regularization coefficient
         :return:  feature importance score and the selection times of different features
+
+        example:
+        filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
+        coef, total=filter.GetCoefficient1(filter.ExtraTreesModel,max_depth=5,estimator_num=100)
         """
         self.DataPreprocess()
         total_choose = np.zeros((self.times, self.x_train.shape[1]))
         coef=0
         for time in range(self.times):
-            print('the round {} for fitting model {} '.format(time,self.model_name))
             model=model_fun(**kwargs)
+            print('the round {} for fitting model {} '.format(time, self.model_name))
             try:
                 test_score=r2_score(self.y_test, model.predict(self.x_test))
                 print('the predicting test accuracy of {} is {}'.format(self.model_name,test_score))
@@ -486,32 +515,45 @@ class FeatureImportance(object):
         return coef,total
 
 
-    def GetCoefficient2(self):
+    def GetCoefficient2(self,filter_fun,**kwargs):
+        """
+        this function use the methods are able to do feature selection only
+        filter_fun : the exeuting function of  GradientLearning , Knockoff or Network
+        return:  feature importance score and the selection times of different features
+
+        example:
+        filter=FeatureImportance(x,y,test_ratio=0.001,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
+        coef, total=filter.GetCoefficient2(filter_fun=filter.GradientLearningFilter,eps=0.25,l1_lamda=0.5,kernel_type="Gaussian")
+        or :
+        coef, total=filter.GetCoefficient2(filter_fun=filter.KnockoffFilter,mode=1,fdr=0.2,plot=False)
+
+        """
         self.DataPreprocess()
         total_choose = np.zeros((self.times, self.x_train.shape[1]))
         coef = 0
+        for time in range(self.times):
+            score = filter_fun(**kwargs)
+            print('the round {} for fitting model {} '.format(time, self.model_name))
+            id = self.CalculateImportance(score, self.wanted_num)
+            total_choose[time, id] = 1
+            coef+=score
+        total = np.sum(total_choose, axis=0).reshape((1, -1))
+        coef = np.mean(coef)
+        return coef, total
+
+
 
 
 if __name__ == '__main__':
     n=200
     p=50
-    total_choose = np.zeros((20, p))
-    for time in range(20):
-        print(1)
-        xita=0.25
-        w=np.random.normal(loc=1,scale=1,size=(n,p))
-        u=np.random.normal(loc=1,scale=1,size=(n,p))
-        x=(w+xita*u)/(1+xita)
-
-        y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
-
-        gl=GradientLearning(x,y,0.25,0.5)
-        f,nrm=gl.main(kernel_type=2)
-        id = nrm.ravel().argsort()[::-1][0:2]
-
-
-        total_choose[time, id] = 1
-    total= np.sum(total_choose, axis=0).reshape((1, -1))
+    xita=0.25
+    w=np.random.normal(loc=1,scale=1,size=(n,p))
+    u=np.random.normal(loc=1,scale=1,size=(n,p))
+    x=(w+xita*u)/(1+xita)
+    y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
+    filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
+    coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
     print(total)
 
 
