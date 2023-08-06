@@ -8,10 +8,25 @@ import statsmodels.api as sm
 from knockpy.knockoff_filter import KnockoffFilter
 import matplotlib.pyplot as plt
 from lassonet import LassoNetRegressor,LassoNetClassifier
-# from group_lasso import GroupLasso
+from group_lasso import GroupLasso
 from sklearn.metrics import mean_squared_error
 from sklearn.neural_network import MLPRegressor,MLPClassifier
 import shap
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+class NeuralNetwork(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(NeuralNetwork, self).__init__()
+        self.fc1 = nn.Linear(in_features=input_size, out_features=50)
+        self.fc2 = nn.Linear(in_features=50, out_features=output_size)
+
+    def forward(self, x):
+        return self.fc2(F.relu(self.fc1(x)))
+
+
 
 class GradientLearning(object):
     def __init__(self,x,y,eps,lambd):
@@ -183,7 +198,7 @@ class SCAD(object):
 class FeatureImportance(object):
     """
     this class use to evaluate the feature importance with some common methods: LASSO, ElasticNet, SCAD, Knockoff,
-    RandomForest,AdaBoost,GradientBoosting ,LassoNet, NeuralNetwork with estimated gradients, numerial gradients
+    RandomForest,AdaBoost,GradientBoosting ,LassoNet, numerial gradients
     """
     def __init__(self,x,y,test_ratio,threshold,wanted_num,task='regression',scarler=None,times=20):
         """
@@ -452,30 +467,6 @@ class FeatureImportance(object):
         coef = np.mean(coef)
         return coef, total
 
-    def NetworkGradient(self,net,backend):
-        """
-        estimate the gradient dy/dx with trained neural network
-        :param net: trained neural network, default with GPU: cuda 0
-        :param backend:  tensorflow or torch ; backend must be matched with trained network
-        :return:   feature importance score and the total selection times of different features
-        """
-        if backend=='torch':
-            import torch
-            #define input tensor
-            x=torch.tensor(self.x,requires_grad=True,dtype=torch.float64)
-            # forward inference
-            y=net(x)
-            y.backward()
-            #get the gradient
-            grad_x=x.grad.cpu.numpy()
-        else:
-            import tensorflow as tf
-            x=tf.convert_to_tensor(x,dtype=tf.float64)
-
-            with tf.GradientTape() as tape:
-                y=net(x)
-            grad_x=tape.gradient(y,x).numpy()
-        return grad_x
 
     def SHAP(self,hidden_num,plot=False):
         """
@@ -541,7 +532,7 @@ class FeatureImportance(object):
     def GetCoefficient2(self,filter_fun,**kwargs):
         """
         this function use the methods are able to do feature selection only
-        filter_fun : the exeuting function of  GradientLearning , Knockoff ,SHAP   or NetworkGradient
+        filter_fun : the exeuting function of  GradientLearning , Knockoff ,SHAP
         return:  feature importance score and the selection times of different features
 
         example:
@@ -575,9 +566,11 @@ if __name__ == '__main__':
     u=np.random.normal(loc=1,scale=1,size=(n,p))
     x=(w+xita*u)/(1+xita)
     y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
-    filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
-    coef, total=filter.GetCoefficient2(filter_fun=filter.SHAP,hidden_num=(64,),plot=True)
-    print(total)
+
+
+    #filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=10)
+    #coef, total=filter.GetCoefficient2(filter.NetworkGradient,net=model,backend='torch',device=device)
+    #print(total)
 
 
 
