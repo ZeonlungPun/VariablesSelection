@@ -12,19 +12,7 @@ from group_lasso import GroupLasso
 from sklearn.metrics import mean_squared_error
 from sklearn.neural_network import MLPRegressor,MLPClassifier
 import shap
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-class NeuralNetwork(nn.Module):
-    def __init__(self, input_size, output_size):
-        super(NeuralNetwork, self).__init__()
-        self.fc1 = nn.Linear(in_features=input_size, out_features=50)
-        self.fc2 = nn.Linear(in_features=50, out_features=output_size)
 
-    def forward(self, x):
-        return self.fc2(F.relu(self.fc1(x)))
 
 
 
@@ -198,7 +186,7 @@ class SCAD(object):
 class FeatureImportance(object):
     """
     this class use to evaluate the feature importance with some common methods: LASSO, ElasticNet, SCAD, Knockoff,
-    RandomForest,AdaBoost,GradientBoosting ,LassoNet, numerial gradients
+    RandomForest,AdaBoost,GradientBoosting ,LassoNet,  Gradients Learning
     """
     def __init__(self,x,y,test_ratio,threshold,wanted_num,task='regression',scarler=None,times=20):
         """
