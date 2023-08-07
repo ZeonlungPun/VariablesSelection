@@ -1,5 +1,4 @@
 # VariablesSelection
-==
 
 Variables Selection detecting  important features from huge input variables.
 
@@ -49,7 +48,7 @@ filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regre
 coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
 ```
 
-coef is the important score of each feature, and total is the summaration time of the feature be choosen during all the experiments.
+'coef' is the important score of each feature, and 'total' is the summaration time of the feature be choosen during all the experiments.
 
 
 
