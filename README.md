@@ -85,7 +85,7 @@ plot=True
 ```
 
 
-The results of knockoff can be visualized as :
+The results of knockoff can be visualized as :<br>
 ![image](https://github.com/ZeonlungPun/VariablesSelection/blob/main/knokcoff_result.png)
 
 
