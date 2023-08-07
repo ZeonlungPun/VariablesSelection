@@ -1,11 +1,11 @@
-#VariablesSelection
+# VariablesSelection
 Variables Selection detecting  important features from huge input variables.
 
 This file provides a class "FeatureImportance" combining most vital feature selection models, which is convenient for users to call.
 
 All the 13 methods we use are : LASSO, ElasticNet, SCAD, Knockoff,RandomForest,AdaBoost,GradientBoosting ,ExtraTrees,LassoNet,GradientLearning,  LassoNet ,GroupLasso and SHAP.
 
-#Paper Links  
+# Paper Links  
 
 [LASSO](https://www.jstor.org/stable/2346178)
 
@@ -23,10 +23,10 @@ All the 13 methods we use are : LASSO, ElasticNet, SCAD, Knockoff,RandomForest,A
 
 [GradientLearning](https://jmlr.csail.mit.edu/papers/volume7/mukherjee06a/mukherjee06a.pdf)
 
-#Packages Need
+# Packages Need
 
 
-#Method To Use
+# Method To Use
 
 
 
