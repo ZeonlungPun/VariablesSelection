@@ -79,16 +79,20 @@ coef, total=filter.GetCoefficient2(filter.SHAP,hidden_num=(12,),plot=True)
 
 # Visualization
 
-if 
+if the parameter 'plot' in filter.GetCoefficient1 and filter.GetCoefficient2
 ```
 plot=True
 ```
 
+
 The results of knockoff can be visualized as :
 ![image](https://github.com/ZeonlungPun/VariablesSelection/blob/main/knokcoff_result.png)
 
+
+
 The results of SHAP can be visualized as : 
 ![image](https://github.com/ZeonlungPun/VariablesSelection/blob/main/vital.png)
+
 
 
 Visualization of LassoNet's tuning hyperparameters process:
