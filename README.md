@@ -26,6 +26,16 @@ All the 13 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest,
 
 # Packages Need
 
+```
+knockpy==1.3.0
+lassonet==0.0.14
+numpy==1.24.4
+group-lasso==1.5.0
+matplotlib==3.7.2
+torch==2.0.1
+shap==0.42.1
+```
+
 
 # Method To Use
 Regardless of the method used, first instantiate the 'FeatureImportance' class.
@@ -50,7 +60,36 @@ coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
 
 'coef' is the important score of each feature, and 'total' is the summaration time of the feature be choosen during all the experiments.
 
+#Example
+
+```
+n=200
+p=50
+xita=0.25
+w=np.random.normal(loc=1,scale=1,size=(n,p))
+u=np.random.normal(loc=1,scale=1,size=(n,p))
+x=(w+xita*u)/(1+xita)
+y=((2*x[:,0]-1)*(2*x[:,1]-1)).reshape((-1,1))
 
 
+filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=20)
+coef, total=filter.GetCoefficient2(filter.SHAP,hidden_num=(12,),plot=True)
+```
 
+#Visualization
+
+if 
+```
+plot=True
+```
+
+The results of knockoff can be visualized as :
+![image](https://github.com/ZeonlungPun/VariablesSelection/blob/main/knokcoff_result.png)
+
+The results of SHAP can be visualized as : 
+![image](https://github.com/ZeonlungPun/VariablesSelection/blob/main/vital.png)
+
+
+Visualization of LassoNet's tuning hyperparameters process:
+![image](https://github.com/ZeonlungPun/VariablesSelection/blob/main/lassonet_result.png)
 
