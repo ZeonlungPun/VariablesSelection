@@ -38,21 +38,22 @@ shap==0.42.1
 
 
 # Method To Use
+
 Regardless of the method used, first instantiate the 'FeatureImportance' class.
 
-To use LASSO, ElasticNet, SCAD, RandomForest, AdaBoost, ExtraTrees, GroupLasso:
+__To use LASSO, ElasticNet, SCAD, RandomForest, AdaBoost, ExtraTrees, GroupLasso__:
 ```
 filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
 coef, total=filter.GetCoefficient1(filter.ExtraTreesModel,max_depth=5,estimator_num=100)   
 ```
 
-To use GradientLearning,  SHAP , Knockoff:
+__To use GradientLearning,  SHAP , Knockoff__:
 ```
 filter=FeatureImportance(x,y,test_ratio=0.001,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
 coef, total=filter.GetCoefficient2(filter_fun=filter.GradientLearningFilter,eps=0.25,l1_lamda=0.5,kernel_type="Gaussian")
 ```
 
-To use LassoNet :
+__To use LassoNet__ :
 ```
 filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
 coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
@@ -60,9 +61,10 @@ coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
 
 'coef' is the important score of each feature, and 'total' is the summaration time of the feature be choosen during all the experiments.
 
-#Example
+# Example
 
 ```
+#create data
 n=200
 p=50
 xita=0.25
@@ -70,13 +72,12 @@ w=np.random.normal(loc=1,scale=1,size=(n,p))
 u=np.random.normal(loc=1,scale=1,size=(n,p))
 x=(w+xita*u)/(1+xita)
 y=((2*x[:,0]-1)*(2*x[:,1]-1)).reshape((-1,1))
-
-
+#execute feature selection
 filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=20)
 coef, total=filter.GetCoefficient2(filter.SHAP,hidden_num=(12,),plot=True)
 ```
 
-#Visualization
+# Visualization
 
 if 
 ```
