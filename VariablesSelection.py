@@ -556,8 +556,8 @@ if __name__ == '__main__':
     y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
 
 
-    #filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=10)
-    #coef, total=filter.GetCoefficient2(filter.NetworkGradient,net=model,backend='torch',device=device)
+    filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=1)
+    coef, total=filter.GetCoefficient2(filter.SHAP,hidden_num=(12,),plot=True)
     #print(total)
 
 
