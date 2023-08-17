@@ -24,7 +24,9 @@ All the 14 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest,
 
 * [GradientLearning](https://jmlr.csail.mit.edu/papers/volume7/mukherjee06a/mukherjee06a.pdf)
 
-* [Layer-WiseRelevancePropagation](https://iphome.hhi.de/samek/pdf/MonXAI19.pdf) 
+* [Layer-WiseRelevancePropagation](https://iphome.hhi.de/samek/pdf/MonXAI19.pdf)
+
+
 
 # Packages Version Need
 
