@@ -2,9 +2,9 @@
 
 Variables Selection detecting  important features from huge input variables.
 
-This file provides a class "FeatureImportance" combining most vital feature selection models, which is convenient for users to call.
+This file VariableSelection.py provides a class "FeatureImportance" combining most vital feature selection models, which is convenient for users to call.
 
-All the 13 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest, AdaBoost, GradientBoosting , ExtraTrees, LassoNet,GradientLearning,  LassoNet , GroupLasso and SHAP.
+All the 14 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest, AdaBoost, GradientBoosting , ExtraTrees, LassoNet,GradientLearning,  LassoNet , GroupLasso ,Layer-WiseRelevancePropagation and SHAP.
 
 # Paper Links  
 
@@ -23,6 +23,8 @@ All the 13 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest,
 * [SHAP](https://proceedings.neurips.cc/paper_files/paper/2017/file/8a20a8621978632d76c43dfd28b67767-Paper.pdf)
 
 * [GradientLearning](https://jmlr.csail.mit.edu/papers/volume7/mukherjee06a/mukherjee06a.pdf)
+
+* [Layer-WiseRelevancePropagation](https://iphome.hhi.de/samek/pdf/MonXAI19.pdf) 
 
 # Packages Need
 
