@@ -26,7 +26,7 @@ All the 14 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest,
 
 * [Layer-WiseRelevancePropagation](https://iphome.hhi.de/samek/pdf/MonXAI19.pdf) 
 
-# Packages Need
+# Packages Version Need
 
 ```
 knockpy==1.3.0
@@ -36,6 +36,7 @@ group-lasso==1.5.0
 matplotlib==3.7.2
 torch==2.0.1
 shap==0.42.1
+statsmodels==0.13.5
 ```
 
 
@@ -74,10 +75,14 @@ w=np.random.normal(loc=1,scale=1,size=(n,p))
 u=np.random.normal(loc=1,scale=1,size=(n,p))
 x=(w+xita*u)/(1+xita)
 y=((2*x[:,0]-1)*(2*x[:,1]-1)).reshape((-1,1))
-#execute feature selection
+
+#execute feature selection 
 filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=20)
 coef, total=filter.GetCoefficient2(filter.SHAP,hidden_num=(12,),plot=True)
 ```
+In the function filter.GetCoefficient1 or filter.GetCoefficient2 , you need to pass a feature selection function in 'FeatureImportance' class as first parameter, 
+other parameters passed depends on the  feature selection method.
+
 
 # Visualization
 
