@@ -12,9 +12,163 @@ from group_lasso import GroupLasso
 from sklearn.metrics import mean_squared_error
 from sklearn.neural_network import MLPRegressor,MLPClassifier
 import shap
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
+
+##create some class for Layer-WiseRelevancePropagation
+# 1,create a simple network and train
+class FeedForwardNetNetwork(nn.Module):
+    def __init__(self, input_size):
+        super(FeedForwardNetNetwork, self).__init__()
+        self.fc1 = nn.Linear(in_features=input_size, out_features=30)
+        self.fc2 =nn.Linear(in_features=30, out_features=5)
+        self.fc3 = nn.Linear(in_features=5, out_features=1)
+
+    def forward(self, x):
+        return self.fc3(F.relu(self.fc2(F.relu(self.fc1(x)))) )
+
+# 2,create data loader
+class Loader(Dataset):
+    def __init__(self,data,label):
+        self.data=data
+        self.label=label
+    def __getitem__(self,index):
+        data=self.data[index]
+        labels=self.label[index]
+        return data,labels
+    def __len__(self):
+        return len(self.data)
+
+#3 , create main function for LRP
+
+class LayerWiseRelevancePropagation(object):
+    def __init__(self,xtrain,ytrain,xtest,ytest):
+        """
+        :param xtrain, ytrain, xtest, ytest:  all data with numpy array
+        """
+        self.xtrain,self.ytrain=xtrain,ytrain
+        self.xtest,self.ytest=xtest,ytest
+        self.x,self.y=np.concatenate([self.xtrain,self.xtest],axis=0),np.concatenate([self.ytrain,self.ytest],axis=0)
+
+    def TrainModel(self,epochs,device='cpu'):
+        """
+        train the Neural Network
+        :param epochs: iteration times
+        :param device: cpu or cuda
+        """
+
+        #make a dataloader
+        trainData = Loader(self.xtrain, self.ytrain)
+        trainData = DataLoader(trainData)
+        testData = Loader(self.xtest, self.ytest)
+        testData = DataLoader(testData)
+
+        #create and build neural network
+        input_size = self.x.shape[1]
+        num_epochs = epochs
+        self.model = FeedForwardNetNetwork(input_size=input_size).to(device)
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(params=self.model.parameters(), lr=0.001)
+
+        # train the model and evaluate it
+        for epoch in range(num_epochs):
+            for data, labels in trainData:
+                # print(data.shape,labels.shape)
+                data = data.float().to(device=device)
+                labels = labels.float().to(device=device)
+                pred = self.model(data)
+                loss = criterion(pred, labels)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            pred, true = [], []
+            with torch.no_grad():
+                for data, labels in testData:
+                    data = data.float().to(device=device)
+                    labels = labels.float().to(device=device)
+                    pred_ = self.model(data)
+                    pred.append(pred_.detach().numpy()[0])
+                    true.append(labels.detach().numpy()[0])
+
+            true, pred = np.array(true).reshape((-1, 1)), np.array(pred).reshape((-1, 1))
+            print('the test score in epoch {} is {}'.format(epoch,r2_score(y_true=true, y_pred=pred)))
 
 
+    def predict(self,xnew):
+        """
+        predict using trained model
+        :param xnew: new data
+        :return: predict results
+        """
+        if len(xnew.shape)==1:
+            xnew=xnew.reshape((1,-1))
+        xnew=torch.tensor(xnew,dtype=torch.float)
+        predict=self.model(xnew).data.numpy()
 
+        return predict
+
+
+    def main(self,x,y):
+        """
+        this function execute the layer wise relevance propagation algorithm when given neural network 'model' and dataset (x,y)
+        :param model: neural network has been trainned
+        :param x: input data,2-d array
+        :param y: output data,1-d array
+        :return: feature importance score
+        """
+
+        params=self.model.state_dict()
+        W=[params['fc1.weight'].numpy().T,params['fc2.weight'].numpy().T,params['fc3.weight'].numpy().T]
+        B=[params['fc1.bias'].numpy(),params['fc2.bias'].numpy(),params['fc3.bias'].numpy()]
+
+        L=3 # L is the layer number
+        # the forward pass can be computed as a sequence of matrix multiplications and nonlinearities
+        # return A as a list with length of layer number
+        A = [x]+[None]*L
+        for l in range(L):
+            A[l+1] = np.maximum(0,A[l].dot(W[l])+B[l]  )
+
+        #create a list to store relevance scores at each layer
+        # return R as a list with length of layer number
+        T=y
+        if len(T.shape)==1:
+            T=T[:,None]
+        R = [None]*L + [A[L]*T  ]
+
+        def rho(w,l):  return w + [None,0.1,0.0,0.0][l] * np.maximum(0,w)
+        def incr(z,l): return z + [None,0.0,0.1,0.0][l] * (z**2).mean()**.5+1e-9
+
+        L=3
+        for l in range(1, L)[::-1]:
+            w = rho(W[l], l)
+            b = rho(B[l], l)
+
+            z = incr(A[l].dot(w) + b, l)  # step 1
+            s = R[l + 1] / z  # step 2
+            c = s.dot(w.T)  # step 3
+            R[l] = A[l] * c  # step 4
+
+        # propagate relevance scores until the pixels, apply an alternate propagation rule that properly handles pixel values received as input
+        w  = W[0]
+        wp = np.maximum(0,w)
+        wm = np.minimum(0,w)
+        lb = A[0]*0-1
+        hb = A[0]*0+1
+
+        z = A[0].dot(w)-lb.dot(wp)-hb.dot(wm)+1e-9        # step 1
+        s = R[1]/z                                        # step 2
+        c,cp,cm  = s.dot(w.T),s.dot(wp.T),s.dot(wm.T)     # step 3
+        R[0] = A[0]*c-lb*cp-hb*cm
+        important_score=np.mean(R[0],axis=0)
+
+        return important_score
+
+
+#create class for implementing gradient learning
 
 class GradientLearning(object):
     def __init__(self,x,y,eps,lambd):
@@ -123,7 +277,7 @@ class GradientLearning(object):
 
         return F, nrm
 
-
+# create class for SCAD
 
 class SCAD(object):
     """
@@ -182,6 +336,8 @@ class SCAD(object):
 
     def predict(self, x_pre):
         return np.dot(x_pre, self.coef_) + self._intercept
+
+#A class combing all important features selection methods
 
 class FeatureImportance(object):
     """
@@ -361,6 +517,14 @@ class FeatureImportance(object):
 
         return nrm
 
+    def LRP(self,epochs,device='cpu'):
+        self.model_name='LayerWiseRelevancePropagation'
+        model=LayerWiseRelevancePropagation(self.x_train,self.y_train,self.x_test,self.y_test)
+        model.TrainModel(epochs=epochs,device=device)
+        score=model.main(self.x,self.y)
+
+        return score
+
     def LassoNetModel(self,hidden_dims,M,group=None,plot=False):
         """
         Lasso Net filter for variable selections
@@ -520,7 +684,7 @@ class FeatureImportance(object):
     def GetCoefficient2(self,filter_fun,**kwargs):
         """
         this function use the methods are able to do feature selection only
-        filter_fun : the exeuting function of  GradientLearning , Knockoff ,SHAP
+        filter_fun : the exeuting function of  GradientLearning , Knockoff ,SHAP,LRP
         return:  feature importance score and the selection times of different features
 
         example:
@@ -535,6 +699,7 @@ class FeatureImportance(object):
         coef = 0
         for time in range(self.times):
             score = filter_fun(**kwargs)
+
             print('the round {} for fitting model {} '.format(time, self.model_name))
             id = self.CalculateImportance(score, self.wanted_num)
             total_choose[time, id] = 1
@@ -556,9 +721,9 @@ if __name__ == '__main__':
     y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
 
 
-    filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=1)
-    coef, total=filter.GetCoefficient2(filter.SHAP,hidden_num=(12,),plot=True)
-    #print(total)
+    filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=10)
+    coef, total=filter.GetCoefficient2(filter.LRP,epochs=25)
+    print(total)
 
 
 
