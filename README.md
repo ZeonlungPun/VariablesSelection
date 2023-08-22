@@ -26,6 +26,7 @@ All the 14 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest,
 
 * [Layer-WiseRelevancePropagation](https://iphome.hhi.de/samek/pdf/MonXAI19.pdf)
 
+* [DeepLIFT](https://arxiv.org/abs/1704.02685)
 
 
 # Packages Version Need
@@ -39,6 +40,7 @@ matplotlib==3.7.2
 torch==2.0.1
 shap==0.42.1
 statsmodels==0.13.5
+captum==0.6.0
 ```
 
 
@@ -52,7 +54,7 @@ filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regre
 coef, total=filter.GetCoefficient1(filter.ExtraTreesModel,max_depth=5,estimator_num=100)   
 ```
 
-__To use GradientLearning,  SHAP , Layer-WiseRelevancePropagation ,Knockoff__:
+__To use GradientLearning,  SHAP , Layer-WiseRelevancePropagation ,DeepLIFT, Knockoff__:
 ```
 filter=FeatureImportance(x,y,test_ratio=0.001,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
 coef, total=filter.GetCoefficient2(filter_fun=filter.GradientLearningFilter,eps=0.25,l1_lamda=0.5,kernel_type="Gaussian")
