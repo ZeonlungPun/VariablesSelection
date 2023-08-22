@@ -52,7 +52,7 @@ filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regre
 coef, total=filter.GetCoefficient1(filter.ExtraTreesModel,max_depth=5,estimator_num=100)   
 ```
 
-__To use GradientLearning,  SHAP , Knockoff__:
+__To use GradientLearning,  SHAP , Layer-WiseRelevancePropagation ,Knockoff__:
 ```
 filter=FeatureImportance(x,y,test_ratio=0.001,threshold=0,wanted_num=2,task='regression',scarler=None,times=10)
 coef, total=filter.GetCoefficient2(filter_fun=filter.GradientLearningFilter,eps=0.25,l1_lamda=0.5,kernel_type="Gaussian")
