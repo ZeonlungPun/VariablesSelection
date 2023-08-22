@@ -17,8 +17,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
+from captum.attr import DeepLift
 
-##create some class for Layer-WiseRelevancePropagation
+##create some class for Layer-WiseRelevancePropagation and DeepLIFT algorithm
 # 1,create a simple network and train
 class FeedForwardNetNetwork(nn.Module):
     def __init__(self, input_size):
@@ -166,6 +167,69 @@ class LayerWiseRelevancePropagation(object):
         important_score=np.mean(R[0],axis=0)
 
         return important_score
+
+#create for DeepLIFT model
+#DeepLIFT model is designed to attribute the change between the input and baseline to
+# a predictive class or a value that the neural network outputs.
+class DeepLIFT(object):
+    def __init__(self,xtrain,ytrain,xtest,ytest):
+        self.xtrain, self.ytrain = xtrain, ytrain
+        self.xtest, self.ytest = xtest, ytest
+        self.x, self.y = np.concatenate([self.xtrain, self.xtest], axis=0), np.concatenate([self.ytrain, self.ytest],axis=0)
+    def TrainModel(self, epochs, device='cpu'):
+        """
+        train the Neural Network
+        :param epochs: iteration times
+        :param device: cpu or cuda
+        """
+
+        # make a dataloader
+        trainData = Loader(self.xtrain, self.ytrain)
+        trainData = DataLoader(trainData)
+        testData = Loader(self.xtest, self.ytest)
+        testData = DataLoader(testData)
+
+        # create and build neural network
+        input_size = self.x.shape[1]
+        print(input_size)
+        num_epochs = epochs
+        self.model = FeedForwardNetNetwork(input_size=input_size).to(device)
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(params=self.model.parameters(), lr=0.001)
+
+        # train the model and evaluate it
+        for epoch in range(num_epochs):
+            for data, labels in trainData:
+                # print(data.shape,labels.shape)
+                data = data.float().to(device=device)
+                labels = labels.float().to(device=device)
+                pred = self.model(data)
+                loss = criterion(pred, labels)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+
+            pred, true = [], []
+            with torch.no_grad():
+                for data, labels in testData:
+                    data = data.float().to(device=device)
+                    labels = labels.float().to(device=device)
+                    pred_ = self.model(data)
+                    pred.append(pred_.detach().numpy()[0])
+                    true.append(labels.detach().numpy()[0])
+
+            true, pred = np.array(true).reshape((-1, 1)), np.array(pred).reshape((-1, 1))
+            print('the test score in epoch {} is {}'.format(epoch, r2_score(y_true=true, y_pred=pred)))
+
+    def main(self,x,y):
+        self.model.eval()
+        x=torch.tensor(x,dtype=torch.float32)
+        deeplift=DeepLift(self.model)
+        baseline=torch.zeros_like(x,dtype=torch.float32)
+        attributions,delta=deeplift.attribute(x,baseline,return_convergence_delta=True)
+        attributions=np.mean(attributions.detach().numpy(),axis=0)
+        return attributions
+
 
 
 #create class for implementing gradient learning
@@ -342,7 +406,7 @@ class SCAD(object):
 class FeatureImportance(object):
     """
     this class use to evaluate the feature importance with some common methods: LASSO, ElasticNet, SCAD, Knockoff,
-    RandomForest,AdaBoost,GradientBoosting ,LassoNet,  Gradients Learning
+    RandomForest,AdaBoost,GradientBoosting ,LassoNet,  Gradients Learning ,LRP
     """
     def __init__(self,x,y,test_ratio,threshold,wanted_num,task='regression',scarler=None,times=20):
         """
@@ -519,9 +583,17 @@ class FeatureImportance(object):
 
     def LRP(self,epochs,device='cpu'):
         self.model_name='LayerWiseRelevancePropagation'
-        model=LayerWiseRelevancePropagation(self.x_train,self.y_train,self.x_test,self.y_test)
-        model.TrainModel(epochs=epochs,device=device)
-        score=model.main(self.x,self.y)
+        LRP=LayerWiseRelevancePropagation(self.x_train,self.y_train,self.x_test,self.y_test)
+        LRP.TrainModel(epochs=epochs,device=device)
+        score=LRP.main(self.x,self.y)
+
+        return score
+
+    def DeepLIFT(self,epochs,device='cpu'):
+        self.model_name='DeepLIFT'
+        deeplift=DeepLIFT(self.x_train,self.y_train,self.x_test,self.y_test)
+        deeplift.TrainModel(epochs=epochs,device=device)
+        score=deeplift.main(self.x,self.y)
 
         return score
 
@@ -701,7 +773,7 @@ class FeatureImportance(object):
             score = filter_fun(**kwargs)
 
             print('the round {} for fitting model {} '.format(time, self.model_name))
-            id = self.CalculateImportance(score, self.wanted_num)
+            id = self.CalculateImportance(abs(score), self.wanted_num)
             total_choose[time, id] = 1
             coef+=score
         total = np.sum(total_choose, axis=0).reshape((1, -1))
@@ -722,7 +794,7 @@ if __name__ == '__main__':
 
 
     filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=10)
-    coef, total=filter.GetCoefficient2(filter.LRP,epochs=25)
+    coef, total=filter.GetCoefficient2(filter.DeepLIFT,epochs=25)
     print(total)
 
 
