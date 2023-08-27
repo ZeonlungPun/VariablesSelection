@@ -45,6 +45,57 @@ class Loader(Dataset):
 
 #3 , create main function for LRP
 
+# a train network function for class LayerWiseRelevancePropagation and  DeepLIFT
+def TrainModel(xtrain,ytrain,xtest,ytest,epochs,device='cpu'):
+
+
+    """
+    train the Neural Network
+    :param epochs: iteration times
+    :param device: cpu or cuda
+    """
+
+    #make a dataloader
+    trainData = Loader(xtrain, ytrain)
+    trainData = DataLoader(trainData)
+    testData = Loader(xtest, ytest)
+    testData = DataLoader(testData)
+
+    #create and build neural network
+    input_size = xtrain.shape[1]
+    num_epochs = epochs
+    model = FeedForwardNetNetwork(input_size=input_size).to(device)
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(params=model.parameters(), lr=0.001)
+
+    # train the model and evaluate it
+    for epoch in range(num_epochs):
+        for data, labels in trainData:
+            # print(data.shape,labels.shape)
+            data = data.float().to(device=device)
+            labels = labels.float().to(device=device)
+            pred = model(data)
+            loss = criterion(pred, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        pred, true = [], []
+        with torch.no_grad():
+            for data, labels in testData:
+                data = data.float().to(device=device)
+                labels = labels.float().to(device=device)
+                pred_ = model(data)
+                pred.append(pred_.detach().numpy()[0])
+                true.append(labels.detach().numpy()[0])
+
+        true, pred = np.array(true).reshape((-1, 1)), np.array(pred).reshape((-1, 1))
+        print('the test score in epoch {} is {}'.format(epoch,r2_score(y_true=true, y_pred=pred)))
+    return model
+
+
+
+
 class LayerWiseRelevancePropagation(object):
     def __init__(self,xtrain,ytrain,xtest,ytest):
         """
@@ -54,52 +105,7 @@ class LayerWiseRelevancePropagation(object):
         self.xtest,self.ytest=xtest,ytest
         self.x,self.y=np.concatenate([self.xtrain,self.xtest],axis=0),np.concatenate([self.ytrain,self.ytest],axis=0)
 
-    def TrainModel(self,epochs,device='cpu'):
-        """
-        train the Neural Network
-        :param epochs: iteration times
-        :param device: cpu or cuda
-        """
-
-        #make a dataloader
-        trainData = Loader(self.xtrain, self.ytrain)
-        trainData = DataLoader(trainData)
-        testData = Loader(self.xtest, self.ytest)
-        testData = DataLoader(testData)
-
-        #create and build neural network
-        input_size = self.x.shape[1]
-        num_epochs = epochs
-        self.model = FeedForwardNetNetwork(input_size=input_size).to(device)
-        criterion = nn.MSELoss()
-        optimizer = optim.Adam(params=self.model.parameters(), lr=0.001)
-
-        # train the model and evaluate it
-        for epoch in range(num_epochs):
-            for data, labels in trainData:
-                # print(data.shape,labels.shape)
-                data = data.float().to(device=device)
-                labels = labels.float().to(device=device)
-                pred = self.model(data)
-                loss = criterion(pred, labels)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-            pred, true = [], []
-            with torch.no_grad():
-                for data, labels in testData:
-                    data = data.float().to(device=device)
-                    labels = labels.float().to(device=device)
-                    pred_ = self.model(data)
-                    pred.append(pred_.detach().numpy()[0])
-                    true.append(labels.detach().numpy()[0])
-
-            true, pred = np.array(true).reshape((-1, 1)), np.array(pred).reshape((-1, 1))
-            print('the test score in epoch {} is {}'.format(epoch,r2_score(y_true=true, y_pred=pred)))
-
-
-    def predict(self,xnew):
+    def predict(self,model,xnew):
         """
         predict using trained model
         :param xnew: new data
@@ -108,12 +114,12 @@ class LayerWiseRelevancePropagation(object):
         if len(xnew.shape)==1:
             xnew=xnew.reshape((1,-1))
         xnew=torch.tensor(xnew,dtype=torch.float)
-        predict=self.model(xnew).data.numpy()
+        predict=model(xnew).data.numpy()
 
         return predict
 
 
-    def main(self,x,y):
+    def main(self,model,x,y):
         """
         this function execute the layer wise relevance propagation algorithm when given neural network 'model' and dataset (x,y)
         :param model: neural network has been trainned
@@ -121,8 +127,8 @@ class LayerWiseRelevancePropagation(object):
         :param y: output data,1-d array
         :return: feature importance score
         """
-
-        params=self.model.state_dict()
+        #get the weights of hidden layers
+        params=model.state_dict()
         W=[params['fc1.weight'].numpy().T,params['fc2.weight'].numpy().T,params['fc3.weight'].numpy().T]
         B=[params['fc1.bias'].numpy(),params['fc2.bias'].numpy(),params['fc3.bias'].numpy()]
 
@@ -176,55 +182,11 @@ class DeepLIFT(object):
         self.xtrain, self.ytrain = xtrain, ytrain
         self.xtest, self.ytest = xtest, ytest
         self.x, self.y = np.concatenate([self.xtrain, self.xtest], axis=0), np.concatenate([self.ytrain, self.ytest],axis=0)
-    def TrainModel(self, epochs, device='cpu'):
-        """
-        train the Neural Network
-        :param epochs: iteration times
-        :param device: cpu or cuda
-        """
 
-        # make a dataloader
-        trainData = Loader(self.xtrain, self.ytrain)
-        trainData = DataLoader(trainData)
-        testData = Loader(self.xtest, self.ytest)
-        testData = DataLoader(testData)
-
-        # create and build neural network
-        input_size = self.x.shape[1]
-        print(input_size)
-        num_epochs = epochs
-        self.model = FeedForwardNetNetwork(input_size=input_size).to(device)
-        criterion = nn.MSELoss()
-        optimizer = optim.Adam(params=self.model.parameters(), lr=0.001)
-
-        # train the model and evaluate it
-        for epoch in range(num_epochs):
-            for data, labels in trainData:
-                # print(data.shape,labels.shape)
-                data = data.float().to(device=device)
-                labels = labels.float().to(device=device)
-                pred = self.model(data)
-                loss = criterion(pred, labels)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-
-            pred, true = [], []
-            with torch.no_grad():
-                for data, labels in testData:
-                    data = data.float().to(device=device)
-                    labels = labels.float().to(device=device)
-                    pred_ = self.model(data)
-                    pred.append(pred_.detach().numpy()[0])
-                    true.append(labels.detach().numpy()[0])
-
-            true, pred = np.array(true).reshape((-1, 1)), np.array(pred).reshape((-1, 1))
-            print('the test score in epoch {} is {}'.format(epoch, r2_score(y_true=true, y_pred=pred)))
-
-    def main(self,x,y):
-        self.model.eval()
+    def main(self,model,x,y):
+        model.eval()
         x=torch.tensor(x,dtype=torch.float32)
-        deeplift=DeepLift(self.model)
+        deeplift=DeepLift(model)
         baseline=torch.zeros_like(x,dtype=torch.float32)
         attributions,delta=deeplift.attribute(x,baseline,return_convergence_delta=True)
         attributions=np.mean(attributions.detach().numpy(),axis=0)
@@ -584,16 +546,16 @@ class FeatureImportance(object):
     def LRP(self,epochs,device='cpu'):
         self.model_name='LayerWiseRelevancePropagation'
         LRP=LayerWiseRelevancePropagation(self.x_train,self.y_train,self.x_test,self.y_test)
-        LRP.TrainModel(epochs=epochs,device=device)
-        score=LRP.main(self.x,self.y)
+        model=TrainModel(xtrain=self.x_train,ytrain=self.y_train,xtest=self.x_test,ytest=self.y_test,epochs=epochs,device=device)
+        score=LRP.main(model,self.x,self.y)
 
         return score
 
     def DeepLIFT(self,epochs,device='cpu'):
         self.model_name='DeepLIFT'
         deeplift=DeepLIFT(self.x_train,self.y_train,self.x_test,self.y_test)
-        deeplift.TrainModel(epochs=epochs,device=device)
-        score=deeplift.main(self.x,self.y)
+        model=TrainModel(xtrain=self.x_train,ytrain=self.y_train,xtest=self.x_test,ytest=self.y_test,epochs=epochs,device=device)
+        score=deeplift.main(model,self.x,self.y)
 
         return score
 
@@ -794,7 +756,7 @@ if __name__ == '__main__':
 
 
     filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=10)
-    coef, total=filter.GetCoefficient2(filter.DeepLIFT,epochs=25)
+    coef, total=filter.GetCoefficient2(filter.LRP,epochs=25)
     print(total)
 
 
