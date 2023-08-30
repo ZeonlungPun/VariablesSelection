@@ -6,6 +6,8 @@ This file VariableSelection.py provides a class "FeatureImportance" combining mo
 
 All the 14 methods we use are : LASSO, ElasticNet, SCAD, Knockoff, RandomForest, AdaBoost, GradientBoosting , ExtraTrees, LassoNet,GradientLearning,  LassoNet , GroupLasso ,Layer-WiseRelevancePropagation and SHAP.
 
+Among these algorithms, LASSO, ElasticNet, SCAD , GroupLasso are based on linear model ;  RandomForest, AdaBoost, GradientBoosting , ExtraTrees are Tree ensemble models ; LassoNet and Layer-WiseRelevancePropagation combine the neural network and features seletion
+
 # Paper Links  
 
 * [LASSO](https://www.jstor.org/stable/2346178)
