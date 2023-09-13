@@ -70,7 +70,7 @@ coef, total=filter.LassoNetModel(hidden_dims=(64,),M=10,plot=True)
 
 'coef' is the important score of each feature, and 'total' is the summaration time of the feature be choosen during all the experiments.
 
-__Additionnaly, we provide a C++ version for gradient learning algorithm__:
+__Additionnaly, we provide a C++ version for gradient learning algorithm__.
 
 This file is written by  armadillo package , to use it ,please input the command in console :
 ```
