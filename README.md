@@ -30,6 +30,8 @@ Among these algorithms, LASSO, ElasticNet, SCAD , GroupLasso are based on linear
 
 * [DeepLIFT](https://arxiv.org/abs/1704.02685)
 
+* [LIME](https://arxiv.org/abs/1602.04938) 
+
 
 # Packages Version Need
 
