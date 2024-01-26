@@ -5,10 +5,10 @@ from sklearn.metrics import r2_score,accuracy_score
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import *
 import statsmodels.api as sm
-from knockpy.knockoff_filter import KnockoffFilter
+#from knockpy.knockoff_filter import KnockoffFilter
 import matplotlib.pyplot as plt
 from lassonet import LassoNetRegressor,LassoNetClassifier
-from group_lasso import GroupLasso
+#from group_lasso import GroupLasso
 from sklearn.metrics import mean_squared_error
 from sklearn.neural_network import MLPRegressor,MLPClassifier
 import shap
@@ -72,8 +72,8 @@ def TrainModel(xtrain,ytrain,xtest,ytest,epochs,device='cpu'):
     for epoch in range(num_epochs):
         for data, labels in trainData:
             # print(data.shape,labels.shape)
-            data = data.float().to(device=device)
-            labels = labels.float().to(device=device)
+            data = torch.tensor(data).float().to(device=device)
+            labels = torch.tensor(labels).float().to(device=device)
             pred = model(data)
             loss = criterion(pred, labels)
             optimizer.zero_grad()
@@ -83,11 +83,15 @@ def TrainModel(xtrain,ytrain,xtest,ytest,epochs,device='cpu'):
         pred, true = [], []
         with torch.no_grad():
             for data, labels in testData:
-                data = data.float().to(device=device)
-                labels = labels.float().to(device=device)
+                data = torch.tensor(data).float().to(device=device)
+                labels = torch.tensor(labels).float().to(device=device)
                 pred_ = model(data)
-                pred.append(pred_.detach().numpy()[0])
-                true.append(labels.detach().numpy()[0])
+                if device=='cuda':
+                    pred.append(pred_.detach().cpu().numpy()[0])
+                    true.append(labels.detach().cpu().numpy()[0])
+                else:
+                    pred.append(pred_.detach().numpy()[0])
+                    true.append(labels.detach().numpy()[0])
 
         true, pred = np.array(true).reshape((-1, 1)), np.array(pred).reshape((-1, 1))
         print('the test score in epoch {} is {}'.format(epoch,r2_score(y_true=true, y_pred=pred)))
@@ -238,7 +242,7 @@ class GradientLearning(object):
         self.ComputeWeightVariance()
         #computes the weight matrix
         w=(1/(self.sigma*np.sqrt(2*np.pi)))*np.exp(-self.dist_norm/(2*self.sigma**2))
-        #give the kernel matrix
+        #give the kernel matrix  K: mp pm --> mm
         if kernel_type=="Gaussian":
             K=self.GaussianKernel()
         else:
@@ -247,6 +251,7 @@ class GradientLearning(object):
         #constructs the matrix of differences between all m samples
         xm=self.x[m-1,:].reshape((-1,1))
         Mx=self.x.T-xm
+
 
         #SVD decompose
         V,Sigma,UT=np.linalg.svd(Mx)
@@ -262,9 +267,12 @@ class GradientLearning(object):
         s=p-cut_index-1
 
         #projects of the paired differences into the subspace of the s eigenfunctions
+        temp = np.zeros((s,))
         t=np.zeros((s,m))
         for j in range(m):
-            t[:,j]=Sigma[0:s]* (UT[0:s,j])
+            temp2=Sigma[0:s]* (UT[0:s,j])
+            temp[0:temp2.shape[0]]=temp2
+            t[:,j]=temp
 
         #initialize the transient matrix
         Ktilde=np.zeros((m*s,m*s))
@@ -294,11 +302,13 @@ class GradientLearning(object):
             Cmat[:,i]=vec.ravel()
 
         #computes the gradient for each sample
+        #  pm  mm --> pm
         F= Cmat @ K
 
         nrm=np.zeros((p,1))
 
         for i in range(p):
+                 # 1xm mm  mx1
             nrm[i,0]=Cmat[i,:]@ K @ (Cmat[i,:].T)
 
         return F, nrm
@@ -582,11 +592,11 @@ class FeatureImportance(object):
             mse = []
             lambda_ = []
             if self.task=='regression':
-                model=LassoNetRegressor(hidden_dims=hidden_dims,M=M,patience=(100,5),groups=group)
+                model=LassoNetRegressor(hidden_dims=hidden_dims,M=M,patience=(100,5),groups=group,verbose=2)
                 score_metrics=r2_score
 
             else:
-                model = LassoNetClassifier(hidden_dims=hidden_dims, M=M, patience=(100, 5), groups=group)
+                model = LassoNetClassifier(hidden_dims=hidden_dims, M=M, patience=(100, 5), groups=group,verbose=2)
                 score_metrics =accuracy_score
 
             #split the validation test to choose the hyperparameters
@@ -650,7 +660,7 @@ class FeatureImportance(object):
             total_choose[time, id] = 1
             coef += coef_
         total = np.sum(total_choose, axis=0).reshape((1, -1))
-        coef = np.mean(coef)
+        coef = coef/times
         return coef, total
 
 
@@ -711,7 +721,7 @@ class FeatureImportance(object):
             total_choose[time, id] = 1
             coef+=coef_
         total = np.sum(total_choose, axis=0).reshape((1, -1))
-        coef=np.mean(coef)
+        coef=coef/times
         return coef,total
 
 
@@ -739,26 +749,42 @@ class FeatureImportance(object):
             total_choose[time, id] = 1
             coef+=score
         total = np.sum(total_choose, axis=0).reshape((1, -1))
-        coef = np.mean(coef)
+        coef = coef/self.times
         return coef, total
 
 
 
 
 if __name__ == '__main__':
-    n=200
-    p=50
-    xita=0.25
-    w=np.random.normal(loc=1,scale=1,size=(n,p))
-    u=np.random.normal(loc=1,scale=1,size=(n,p))
-    x=(w+xita*u)/(1+xita)
-    y=((2*x[:,1]-1)*(2*x[:,2]-1)).reshape((-1,1))
+    import pandas as pd
+
+    blue = pd.read_csv('BLUE.txt', sep='\t')
+    f1 = pd.read_csv('F1.txt', sep=' ')
+    data = pd.merge(left=f1, right=blue, on='IID')
+    data['year'] = data['FID_x'].str.extract('(\d+)', expand=False)
+    data = data[data['year'] == '23']
+
+    yraw = data.loc[:, 'MSTSU']
+    xraw = data.iloc[:, 6:-20]
+    dataraw = pd.concat([xraw, yraw], axis=1)
+    dataraw = dataraw.dropna()
+    x = dataraw.iloc[:, 0:-1]
+    y = dataraw.iloc[:, -1]
+    x, y = np.array(x), np.array(y)
+    from sklearn.preprocessing import MinMaxScaler
+    scalry = MinMaxScaler()
+    y_ = scalry.fit_transform(y.reshape((-1, 1)))
 
 
-    filter=FeatureImportance(x,y,test_ratio=0.2,threshold=0,wanted_num=2,task='regression',scarler='MinMaxScaler',times=10)
-    coef, total=filter.GetCoefficient2(filter.LRP,epochs=25)
-    print(total)
+    filter = FeatureImportance(x, y_, test_ratio=0.001, threshold=0, wanted_num=2, task='regression', scarler=None,times=1)
+    #coef, total = filter.LassoNetModel(hidden_dims=(64,),M=10,plot=False)
+    coef, total=filter.GetCoefficient2(filter.GradientLearningFilter,eps=1e-3,l1_lamda=0.05)
+    #coef, total = filter.GetCoefficient2(filter.DeepLIFT, epochs=30)
 
-
-
-
+    coef = np.abs(coef)
+    non_zero_id = np.where(coef > 0)[0]
+    keep_values = coef.reshape((1, -1))
+    keep_values = keep_values[:, non_zero_id] * 10000
+    keep_names = xnames[non_zero_id]
+    keep_values = pd.DataFrame(keep_values, columns=keep_names)
+    #keep_values.to_csv("deeplift.csv")
