@@ -651,6 +651,7 @@ class FeatureImportance(object):
             model=LassoNetFilter(hidden_dims,M,group,plot)
             if self.task=='regression':
                 test_score=r2_score(y_true=self.y_test,y_pred=model.predict(self.x_test))
+                print("r2 score is {}".format(test_score))
             else:
                 test_score=accuracy_score(self.y_test,model.predict(self.x_test))
             if test_score < self.threshold:
@@ -660,7 +661,7 @@ class FeatureImportance(object):
             total_choose[time, id] = 1
             coef += coef_
         total = np.sum(total_choose, axis=0).reshape((1, -1))
-        coef = coef/times
+        coef = coef/self.times
         return coef, total
 
 
@@ -757,34 +758,30 @@ class FeatureImportance(object):
 
 if __name__ == '__main__':
     import pandas as pd
+    descriptor=pd.read_csv('/home/kingargroo/SparseAdditiveModel-main/Demo_GSAM/descriptor_.csv')
+    describe_=pd.read_csv('/home/kingargroo/SparseAdditiveModel-main/Demo_GSAM/describe_.csv')
+    activity=pd.read_excel('/home/kingargroo/SparseAdditiveModel-main/Demo_GSAM/ERα_activity.xlsx')
+    group=describe_.loc[:,'group']
+    group_num=pd.unique(group)
+    group_list=[]
+    for i in group_num:
+        feature_id=list(np.where(group==i)[0])
+        group_list.append(feature_id)
+    x=descriptor
+    y=activity.loc[:,"pIC50"]
 
-    blue = pd.read_csv('BLUE.txt', sep='\t')
-    f1 = pd.read_csv('F1.txt', sep=' ')
-    data = pd.merge(left=f1, right=blue, on='IID')
-    data['year'] = data['FID_x'].str.extract('(\d+)', expand=False)
-    data = data[data['year'] == '23']
-
-    yraw = data.loc[:, 'MSTSU']
-    xraw = data.iloc[:, 6:-20]
-    dataraw = pd.concat([xraw, yraw], axis=1)
-    dataraw = dataraw.dropna()
-    x = dataraw.iloc[:, 0:-1]
-    y = dataraw.iloc[:, -1]
     x, y = np.array(x), np.array(y)
     from sklearn.preprocessing import MinMaxScaler
+    scalrx=MinMaxScaler()
     scalry = MinMaxScaler()
+    x=scalrx.fit_transform(x)
     y_ = scalry.fit_transform(y.reshape((-1, 1)))
 
 
-    filter = FeatureImportance(x, y_, test_ratio=0.001, threshold=0, wanted_num=2, task='regression', scarler=None,times=1)
-    #coef, total = filter.LassoNetModel(hidden_dims=(64,),M=10,plot=False)
-    coef, total=filter.GetCoefficient2(filter.GradientLearningFilter,eps=1e-3,l1_lamda=0.05)
-    #coef, total = filter.GetCoefficient2(filter.DeepLIFT, epochs=30)
+    filter = FeatureImportance(x, y_, test_ratio=0.15, threshold=0, wanted_num=2, task='regression', scarler=None,times=1)
+    coef, total = filter.LassoNetModel(hidden_dims=(200,100,60),M=10,plot=False,group=group_list)
+    #評估每一組的重要性分數
+    group_score=[]
+    for g in group_list:
+        group_score.append(np.mean(coef[g]))
 
-    coef = np.abs(coef)
-    non_zero_id = np.where(coef > 0)[0]
-    keep_values = coef.reshape((1, -1))
-    keep_values = keep_values[:, non_zero_id] * 10000
-    keep_names = xnames[non_zero_id]
-    keep_values = pd.DataFrame(keep_values, columns=keep_names)
-    #keep_values.to_csv("deeplift.csv")
